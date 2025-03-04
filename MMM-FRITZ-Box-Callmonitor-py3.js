@@ -6,8 +6,12 @@
  * By Paul-Vincent Roll http://paulvincentroll.com
  * MIT Licensed.
  */
-
-Module.register("MMM-FRITZ-Box-Callmonitor", {
+const CALL_TYPE = Object.freeze({
+	INCOMING: "1",
+	MISSED: "2",
+	OUTGOING: "3"
+})
+Module.register("MMM-FRITZ-Box-Callmonitor-py3", {
 
 	requiresVersion: "2.0.0",
 
@@ -27,40 +31,40 @@ Module.register("MMM-FRITZ-Box-Callmonitor", {
 		password: "",
 		reloadContactsInterval: 30, // 30 minutes, set to 0 to disable
 		deviceFilter: [], // [] means no filtering
-		showContactsStatus: false
+		showContactsStatus: false,
+		showOutgoing: false,
+		colorEnabled: false,
+		showDuration: false
 	},
 
 	// Define required translations.
-	getTranslations: function() {
+	getTranslations: function () {
 		return {
 			en: "translations/en.json",
 			de: "translations/de.json"
 		};
 	},
 
-	/*
-	 * ToDo: enable the following method after version MM 2.1.0 is released
-	 */
-	//getHeader: function() {
-	//	return this.data.header + this.getContactsSymbol();
-	//},
+	getHeader: function () {
+		return this.data.header + this.getContactsSymbol();
+	},
 
-	getScripts: function() {
+	getScripts: function () {
 		return ["moment.js"];
 	},
 
-	getStyles: function() {
-		return ["font-awesome.css", "MMM-FRITZ-Box-Callmonitor.css"];
+	getStyles: function () {
+		return ["font-awesome.css", "MMM-FRITZ-Box-Callmonitor-py3.css"];
 	},
 
-	start: function() {
+	start: function () {
 		//Create callHistory array
 		this.callHistory = [];
 		this.activeAlert = null;
 		//Set helper variable this so it is available in the timer
 		var self = this;
 		//Update doom every minute so that the time of the call updates and calls get removed after a certain time
-		setInterval(function() {
+		setInterval(function () {
 			self.updateDom();
 		}, 60000);
 
@@ -74,7 +78,7 @@ Module.register("MMM-FRITZ-Box-Callmonitor", {
 
 		//set up the contact reloading
 		if (this.config.password !== "" && this.config.reloadContactsInterval !== 0) {
-			setInterval(function() {
+			setInterval(function () {
 				self.sendSocketNotification("RELOAD_CONTACTS");
 			}, this.config.reloadContactsInterval * 60000);
 		}
@@ -83,7 +87,7 @@ Module.register("MMM-FRITZ-Box-Callmonitor", {
 	},
 
 	// Override socket notification handler.
-	socketNotificationReceived: function(notification, payload) {
+	socketNotificationReceived: function (notification, payload) {
 		if (notification === "call") {
 			//Show alert on UI
 			this.sendNotification("SHOW_ALERT", {
@@ -118,7 +122,7 @@ Module.register("MMM-FRITZ-Box-Callmonitor", {
 			} else {
 				//Add call to callHistory (timestamp and caller) or if minimumCallLength is set only missed calls
 				if (this.config.minimumCallLength === 0 || payload.duration <= this.config.minimumCallLength) {
-					this.callHistory.unshift({"time": moment(), "caller": payload.caller});
+					this.callHistory.unshift({ "time": moment(), "caller": payload.caller });
 				}
 				//Update call list on UI
 				this.updateDom(3000);
@@ -164,22 +168,18 @@ Module.register("MMM-FRITZ-Box-Callmonitor", {
 		}
 	},
 
-	getContactsSymbol: function() {
+	getContactsSymbol: function () {
 		var html = "";
-		if (this.config.showContactsStatus && (this.config.vCard || this.config.password !== ""))
-		{
+		if (this.config.showContactsStatus && (this.config.vCard || this.config.password !== "")) {
 			html += " (<span class='small fa fa-book'/></span>";
 
-			if (this.contactsLoaded)
-			{
+			if (this.contactsLoaded) {
 				html += " " + this.numberOfContacts;
 			}
-			else
-			{
+			else {
 				html += " <span class='small fa fa-refresh fa-spin fa-fw'></span>";
 			}
-			if (this.contactLoadError)
-			{
+			if (this.contactLoadError) {
 				html += " <span class='small fa fa-exclamation-triangle'/></span> ";
 				html += this.translate(this.errorCode);
 			}
@@ -188,18 +188,18 @@ Module.register("MMM-FRITZ-Box-Callmonitor", {
 		return html;
 	},
 
-	sortHistory: function() {
+	sortHistory: function () {
 		var history = this.callHistory;
 
 		//Sort history by time
-		history.sort(function(a, b) {
-			return moment(moment(a.time)).diff(moment(b.time)) < 0;
+		history.sort(function (a, b) {
+			return new Date(b.time) - new Date(a.time);
 		});
 
 		this.callHistory = history;
 	},
 
-	trimHistory: function() {
+	trimHistory: function () {
 		var history = this.callHistory;
 
 		//For each call in callHistory
@@ -215,7 +215,7 @@ Module.register("MMM-FRITZ-Box-Callmonitor", {
 		this.callHistory = history;
 	},
 
-	getDom: function() {
+	getDom: function () {
 		//remove old calls
 		this.sortHistory();
 		this.trimHistory();
@@ -232,9 +232,6 @@ Module.register("MMM-FRITZ-Box-Callmonitor", {
 		if (calls.length === 0) {
 			content = this.translate("noCall");
 
-			// ToDo: remove this line after version MM 2.1.0 is released
-			content += this.getContactsSymbol();
-
 			wrapper.innerHTML = content;
 			wrapper.className = "xsmall dimmed";
 			return wrapper;
@@ -247,14 +244,52 @@ Module.register("MMM-FRITZ-Box-Callmonitor", {
 			var callWrapper = document.createElement("tr");
 			callWrapper.className = "normal";
 
+			var iconWrapper = document.createElement("td");
+
+			//Set icon
+			var icon = document.createElement("i")
+			icon.style = "padding-right: 10px"
+			switch (calls[i].type) {
+				case CALL_TYPE.INCOMING:
+					if (this.config.colorEnabled) {
+						icon.style += ";color: #96FF96";
+					}
+					icon.className = "fas fa-level-down-alt"
+					break
+				case CALL_TYPE.OUTGOING:
+					//Skip outgoing calls if not wanted
+					if (!this.config.showOutgoing)
+						continue
+					if (this.config.colorEnabled) {
+						icon.style += ";color: #BCDDFF";
+					}
+					icon.className = "fas fa-level-up-alt"
+					break
+				case CALL_TYPE.MISSED:
+					if (this.config.colorEnabled)
+						icon.style += ";color: #FF8E99"
+					icon.className = "fas fa-times"
+					break
+			}
+			iconWrapper.appendChild(icon);
+			callWrapper.appendChild(iconWrapper);
+
 			//Set caller of row
-			var caller =  document.createElement("td");
+			var caller = document.createElement("td");
 			caller.innerHTML = calls[i].caller;
 			caller.className = "title bright";
 			callWrapper.appendChild(caller);
 
+			//If enabled, show duration of call
+			var duration = document.createElement("td");
+			if(this.config.showDuration && calls[i].type !== CALL_TYPE.MISSED) {
+				duration.innerHTML = calls[i].duration;
+				duration.className = "time light xsmall";
+			}
+			callWrapper.appendChild(duration);
+
 			//Set time of row
-			var time =  document.createElement("td");
+			var time = document.createElement("td");
 			time.innerHTML = moment(calls[i].time).fromNow();
 			time.className = "time light xsmall";
 			callWrapper.appendChild(time);
@@ -286,7 +321,7 @@ Module.register("MMM-FRITZ-Box-Callmonitor", {
 	 * argument a string - Version number a.
 	 * argument a string - Version number b.
 	 */
-	cmpVersions: function(a, b) {
+	cmpVersions: function (a, b) {
 		var i, diff;
 		var regExStrip0 = /(\.0+)+$/;
 		var segmentsA = a.replace(regExStrip0, "").split(".");

@@ -2,7 +2,6 @@
   "title": "Incoming Call",
   "noCall": "No recent calls.",
 
-  // keep the error messages short
   "calllist_parse_error": "Can't parse calllist.",
   "phonebook_parse_error": "Can't parse phonebook.",
   "vcf_parse_error": "Can't parse vCard.",
