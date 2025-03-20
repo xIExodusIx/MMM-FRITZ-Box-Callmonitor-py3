@@ -9,13 +9,14 @@
 const CALL_TYPE = Object.freeze({
 	INCOMING: "1",
 	MISSED: "2",
-	OUTGOING: "3"
+	OUTGOING: "3",
+	BLOCKED: "10"		//New entry for blocked calls as found on: https://fritzconnection.readthedocs.io/en/1.14.0/sources/library_modules.html
 })
 Module.register("MMM-FRITZ-Box-Callmonitor-py3", {
 
-	requiresVersion: "2.0.0",
+	requiresVersion: "2.2.0",
 
-	// Default module config.
+	//Default module config.
 	defaults: {
 		numberFontSize: 30,
 		vCard: false,
@@ -29,15 +30,15 @@ Module.register("MMM-FRITZ-Box-Callmonitor-py3", {
 		fadePoint: 0.25,
 		username: "",
 		password: "",
-		reloadContactsInterval: 30, // 30 minutes, set to 0 to disable
-		deviceFilter: [], // [] means no filtering
+		reloadContactsInterval: 30, 	// 30 minutes, set to 0 to disable
+		deviceFilter: [], 				// [] means no filtering
 		showContactsStatus: false,
 		showOutgoing: false,
 		colorEnabled: false,
 		showDuration: false
 	},
 
-	// Define required translations.
+	//Define required translations.
 	getTranslations: function () {
 		return {
 			en: "translations/en.json",
@@ -86,7 +87,7 @@ Module.register("MMM-FRITZ-Box-Callmonitor-py3", {
 		Log.info("Starting module: " + this.name);
 	},
 
-	// Override socket notification handler.
+	//Override socket notification handler.
 	socketNotificationReceived: function (notification, payload) {
 		if (notification === "call") {
 			//Show alert on UI
@@ -95,7 +96,6 @@ Module.register("MMM-FRITZ-Box-Callmonitor-py3", {
 				message: "<span style='font-size:" + this.config.numberFontSize.toString() + "px'>" + payload + "<span>",
 				imageFA: "phone"
 			});
-
 			//Set active Alert to current call
 			this.activeAlert = payload;
 		}
@@ -103,19 +103,42 @@ Module.register("MMM-FRITZ-Box-Callmonitor-py3", {
 		if (notification === "connected") {
 			//Send notification for currentCall module
 			this.sendNotification("CALL_CONNECTED", payload);
-
 			//Remove alert only on connect if it is the current alert shown
-			if (this.activeAlert === payload) {
+			if (this.activeAlert === payload.caller) {
 				//Remove alert from UI when call is connected
 				this.sendNotification("HIDE_ALERT");
 				this.activeAlert = null;
 			}
 		}
-
+		
+		//Handle blocked calls
+		if (notification === "blocked") {
+			//Send notification for currentCall module
+			this.sendNotification("CALL_BLOCKED", payload);
+			if (this.config.password !== "") {
+				// if we have an API connection, check if the call was really blocked
+				this.sendSocketNotification("RELOAD_CALLS");
+				//Update call list on UI
+				this.updateDom(3000);
+				//Remove alert from UI when call is blocked
+				this.sendNotification("HIDE_ALERT");
+				this.activeAlert = null;
+			} else {
+				//Add call to callHistory (timestamp and caller) or if minimumCallLength is set only missed calls
+				if (this.config.minimumCallLength === 0 || payload.duration <= this.config.minimumCallLength) {
+					this.callHistory.unshift({ "time": moment(), "caller": payload.caller});
+				}
+				//Update call list on UI
+				this.updateDom(3000);
+				//Remove alert from UI when call is blocked
+				this.sendNotification("HIDE_ALERT");
+				this.activeAlert = null;
+			}	
+		}
+		
 		if (notification === "disconnected") {
 			//Send notification for currentCall module
 			this.sendNotification("CALL_DISCONNECTED", payload.caller);
-
 			if (this.config.password !== "") {
 				// if we have an API connection, check if the call was really missed
 				this.sendSocketNotification("RELOAD_CALLS");
@@ -127,7 +150,6 @@ Module.register("MMM-FRITZ-Box-Callmonitor-py3", {
 				//Update call list on UI
 				this.updateDom(3000);
 			}
-
 			//Remove alert only on disconnect if it is the current alert shown
 			if (this.activeAlert === payload.caller) {
 				//Remove alert from UI when call is connected
@@ -158,7 +180,7 @@ Module.register("MMM-FRITZ-Box-Callmonitor-py3", {
 			this.numberOfContacts = payload;
 
 			if (this.errorCode === "network_error") {
-				// clear previous network errors, since we got a connection now
+				//Clear previous network errors, since we got a connection now
 				this.contactLoadError = false;
 				this.errorCode = "";
 			}
@@ -252,7 +274,7 @@ Module.register("MMM-FRITZ-Box-Callmonitor-py3", {
 			switch (calls[i].type) {
 				case CALL_TYPE.INCOMING:
 					if (this.config.colorEnabled) {
-						icon.style += ";color: #96FF96";
+						icon.style += ";color: #0000FF";	// blue //old color: ";color: #96FF96";
 					}
 					icon.className = "fas fa-level-down-alt"
 					break
@@ -261,13 +283,18 @@ Module.register("MMM-FRITZ-Box-Callmonitor-py3", {
 					if (!this.config.showOutgoing)
 						continue
 					if (this.config.colorEnabled) {
-						icon.style += ";color: #BCDDFF";
+						icon.style += ";color: #00FF00"; 	//green //old color: ";color: #BCDDFF";
 					}
 					icon.className = "fas fa-level-up-alt"
 					break
 				case CALL_TYPE.MISSED:
 					if (this.config.colorEnabled)
-						icon.style += ";color: #FF8E99"
+						icon.style += ";color: #FF0000";	//red   //old color: ";color: #FF8E99"
+					icon.className = "fas fa-times"
+					break
+				case CALL_TYPE.BLOCKED:						//New entry! to show blocked calls
+					if (this.config.colorEnabled)
+						icon.style += ";color: #FF0000";	//red 	//old color: ";color: #FF8E99"
 					icon.className = "fas fa-times"
 					break
 			}

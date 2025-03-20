@@ -6,14 +6,26 @@ This an extension for the [MagicMirror](https://github.com/MichMich/MagicMirror)
 ![call screenshot](screenshot.png)
 
 The original version has not been maintained for many years. Especially, it relied on python2. 
-This fork should work with python3 and the MagicMirror version 2.22.
+This fork should work with python3 and the MagicMirror version 2.30.
 
+I have revised the MM2 module MMM-FRITZ-Box-Callmonitor-py3 and the different versions or forks or branches of paviro (thanks for the base module), 
+armybean (thanks for the version with colored direction arrows in the module MMM-Callmonitor-Current-Call) and drtorchwood (thanks for migration of 
+the module to python3) compared, merged and largely made it work.
+As originally intended by armybean (MMM-Callmonitor-Current-Call), all calls are now shown with colored directional arrows (incoming blue, outgoing green), 
+as well as missed or blocked calls (red x). You have to install the module (MMM-Callmonitor-Current-Call) too if you want the colored direction arrows.
+It now also can handle allmost all unwanted (blocked) calls, as far as they are in your FritzBox phonebook for unwanted calls. Numbers that are in
+the "area list" for unwanted calls can not be handled by now, they appear as "SIP:yourownphonenumber" in the MM2 callist.
+If you want to install my branch of this module, and you have allready installed this module before, you have to rename or delete the old module 
+"MMM-FRITZ-Box-Callmonitor-py3" in the "../MagicMirror/modules/" Folder first.  
 
 ## Installation
-1. Navigate into your MagicMirror's `modules` folder and execute `git clone https://github.com/drtorchwood/MMM-FRITZ-Box-Callmonitor-py3.git`. A new folder will appear navigate into it.
-2. Execute `npm install` to install the dependencies.
-3. (Optional) Execute `sudo apt-get install python-dev libxml2-dev libxslt1-dev zlib1g-dev && sudo pip install fritzconnection` to allow access to your FRITZ!Box phone book and recent calls. This can take a few minutes.
-4. Activate the callmonitor of your FRITZ!Box by calling `#96*5*` on a connected phone (Fritz Fon App won't work).
+1. Navigate into your MagicMirror's `modules` Folder and delete “rm -rf MMM-FRITZ-Box-Callmonitor-py3” or 
+   rename “mv MMM-FRITZ-Box-Callmonitor-py3 MMM-FRITZ-Box-Callmonitor-py3.old” the old folder. 
+2. execute `git clone https://github.com/xIExodusIx/MMM-FRITZ-Box-Callmonitor-py3.git`. A new folder will appear navigate into it.
+3. Execute `npm install` to install the dependencies.
+4. (Optional) Execute `sudo apt-get install python3-dev libxml2-dev libxslt1-dev zlib1g-dev && sudo pip install --break-system-packages fritzconnection` 
+   to allow access to your FRITZ!Box phone book and recent calls. This can take a few minutes.
+5. Activate the callmonitor of your FRITZ!Box by calling `#96*5*` on a connected phone (Fritz Fon App won't work).
 
 ## Using the module
 To use this module, add it to the modules array in the `config/config.js` file:
@@ -72,7 +84,7 @@ The following properties can be configured:
 - [python-shell](https://www.npmjs.com/package/python-shell) (installed by `npm install`)
 - [vcard-json](https://www.npmjs.com/package/vcard-json) (installed by `npm install`)
 - [xml2js](https://www.npmjs.com/package/xml2js): (installed by `npm install`)
-- [fritzconnection](https://pypi.python.org/pypi/fritzconnection): (installed by `sudo apt-get install python-dev libxml2-dev libxslt1-dev zlib1g-dev && sudo pip install fritzconnection`)
+- [fritzconnection](https://pypi.python.org/pypi/fritzconnection): (installed by `sudo apt-get install python3-dev libxml2-dev libxslt1-dev zlib1g-dev && sudo pip install --break-system-packages fritzconnection`)
 
 The MIT License (MIT)
 =====================

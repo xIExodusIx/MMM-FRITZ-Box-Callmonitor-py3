@@ -13,9 +13,10 @@ const path = require("path");
 const CALL_TYPE = Object.freeze({
 	INCOMING: "1",
 	MISSED: "2",
-	OUTGOING: "3"
+	OUTGOING: "3",
+	BLOCKED: "10"		//New entry for blocked calls as found on: https://fritzconnection.readthedocs.io/en/1.14.0/sources/library_modules.html
 })
-// outgoing missed calls are not in the list
+//outgoing missed calls are not in the list
 
 module.exports = NodeHelper.create({
 	// Subclass start method.
@@ -89,10 +90,17 @@ module.exports = NodeHelper.create({
 			//Save own number (call.caller) to ownNumbers Array to distinguish inbound/outbound on "connected" handler
 			if (!self.ownNumbers.includes(call.caller))
 				self.ownNumbers.push(call.caller)
-			self.sendSocketNotification("outbound", call.called);
+				self.sendSocketNotification("outbound", call.called);
 
 		});
-
+		
+		//Call blocked
+		monitor.on("blocked", function (call) {
+				var name = call.type === "blocked" ? self.getName(call.called) : self.getName(call.caller);
+				//send clear command to interface
+				self.sendSocketNotification("blocked", self.getName(call.caller)); //{ "caller": name, "duration": call.duration });
+		});
+		
 		//Call accepted
 		monitor.on("connected", function (call) {
 			var name = self.ownNumbers.includes(call.caller) ? self.getName(call.called) : self.getName(call.caller);
@@ -153,18 +161,25 @@ module.exports = NodeHelper.create({
 			for (var index in callArray) {
 				var call = callArray[index];
 				var type = call.Type[0];
+				//Trying to handle blocked calls these lines 164-171 are new from "if to else" and it works!
+				if  (name = type == CALL_TYPE.BLOCKED || type == CALL_TYPE.INCOMING ? self.getName(call.Caller[0]) : self.getName(call.Called[0]));
+					var duration = call.Duration[0];
+					if (type == CALL_TYPE.INCOMING && self.config.deviceFilter && self.config.deviceFilter.indexOf(call.Device[0]) > -1) {
+						continue;
+				} 
+				else
+				//From here the original script is ongoing
 				var name = type == CALL_TYPE.MISSED || type == CALL_TYPE.INCOMING ? self.getName(call.Caller[0]) : self.getName(call.Called[0]);
 				var duration = call.Duration[0];
-				if (type == CALL_TYPE.INCOMING && self.config.deviceFilter && self.config.deviceFilter.indexOf(call.Device[0]) > -1) {
-					continue;
+					if (type == CALL_TYPE.INCOMING && self.config.deviceFilter && self.config.deviceFilter.indexOf(call.Device[0]) > -1) {
+						continue;
 				}
 				var callInfo = { "time": moment(call.Date[0], "DD.MM.YY HH:mm"), "caller": name, "type": type, "duration": duration };
 				if (call.Name[0]) {
 					callInfo.caller = call.Name[0];
 				}
 				callHistory.push(callInfo)
-
-			}
+		}
 			self.sendSocketNotification("call_history", callHistory);
 		});
 	},
@@ -222,25 +237,25 @@ module.exports = NodeHelper.create({
 
 		pyshell.on('message', function (message) {
 			if (message.filename.indexOf("calls") !== -1) {
-				// call list file
+				//Call list file
 				self.loadCallList(message.content);
 			} else {
-				// phone book file
+				//Phone book file
 				self.loadPhonebook(message.content);
 			}
 		});
 
-		// end the input stream and allow the process to exit
+		//End the input stream and allow the process to exit
 		pyshell.end(function (error) {
 			if (error) {
 				var errorUnknown = true;
 				if (error.traceback.indexOf("XMLSyntaxError") !== -1) {
-					// password is probably wrong
+					//Password is probably wrong
 					self.sendSocketNotification("error", "login_error");
 					errorUnknown = false;
 				}
 				if (error.traceback.indexOf("failed to load external entity") !== -1) {
-					// probably no network connection
+					//Probably no network connection
 					self.sendSocketNotification("error", "network_error");
 					errorUnknown = false;
 				}
